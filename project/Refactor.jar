@@ -1,0 +1,209 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package project;
+
+import java.sql.*;
+
+/**
+ * @author Matt
+ */
+public class Refactor {
+    
+    public static void DeleteTable(String tableName, Connection con){
+        System.out.println("Dropping table "+ tableName);
+        ResultSet rs;
+        try{
+            DatabaseMetaData meta = con.getMetaData();
+            rs = meta.getImportedKeys(null, null, tableName);
+            while(rs.next()){
+                String fkTable = rs.getString("FKTABLE_NAME");
+                String fkColumn = rs.getString("FKCOLUMN_NAME");
+                DeleteColumn(fkTable, fkColumn, con);
+            }
+        }catch(Exception e){
+            System.out.println("Error in DropTable getting imported keys - "+ e);
+        }
+        String sql = "DROP TABLE "+tableName;
+        try{    
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("Error in DropTable Dropping table "+ e);
+        }
+        
+    }
+    
+    public static void DeleteColumn(String tableName, String columnName, Connection con){
+        System.out.println("Deleting Column " +columnName+ " from " +tableName);
+// create temp table
+        try{
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate("DROP TABLE IF EXISTS temp");
+            ResultSet res = stmt.executeQuery("SELECT * FROM "+ tableName);
+            ResultSetMetaData rsmd = res.getMetaData();
+            int columnsNumber = rsmd.getColumnCount();
+            
+            DatabaseMetaData meta = con.getMetaData();
+            ResultSet columns = meta.getColumns(null, null, tableName, null);
+            String[] columnNames = new String[columnsNumber-1];
+            String[] full = new String[columnsNumber-1];
+            int count =0;
+            //gets the columns of the table
+            while(columns.next()){
+            String tempColName = columns.getString("COLUMN_NAME");
+                if(tempColName.equals(columnName)){
+                }else{
+                    String type = columns.getString("TYPE_NAME");
+                    String size = columns.getString("COLUMN_SIZE");
+                    columnNames[count] = tempColName;
+                    full[count]= tempColName +" "+type+"("+size+")";
+                    System.out.println("Name = "+columnNames[count]);
+                    //find out which one is the primary key
+                    count++;
+                }
+                
+            }
+            //create a temp table
+            String columnString = " ";
+            String names = " ";
+            for(int n=0; n<full.length-1;n++){
+                columnString = columnString+full[n]+",";
+                names = names+columnNames[n]+",";
+            }
+            names = names + columnNames[columnNames.length-1];
+            columnString = columnString + full[full.length-1];
+            String sql = "CREATE TABLE temp ("+columnString+");";
+            System.out.println("Column String = "+columnString);
+            System.out.println("sql = "+ sql);
+            stmt.executeUpdate(sql);
+            
+            //import all the values into the table 
+            sql = "INSERT INTO temp SELECT "+names+" FROM "+ tableName+";";
+            stmt.executeUpdate(sql);
+            //Drop the table
+            sql = "DROP TABLE "+ tableName;
+            stmt.executeUpdate(sql);
+            //Rename the table
+            sql = "RENAME TABLE temp TO "+ tableName;
+            stmt.executeUpdate(sql);
+            sql = "SELECT * FROM "+ tableName;
+            ResultSet rs = stmt.executeQuery(sql);
+            rsmd = rs.getMetaData();
+            columnsNumber = rsmd.getColumnCount();
+            System.out.println("PRINTING OUT VALUES");
+            while(rs.next()){
+                for (int i = 1; i <= columnsNumber; i++) {
+                 if (i > 1) System.out.print(",  ");
+                 String columnValue = rs.getString(i);
+                 System.out.print(columnValue + " " + rsmd.getColumnName(i));
+                }
+                System.out.println();
+            }
+        }catch(Exception e){
+            System.out.println("Error in DropColumn "+ e);
+            e.printStackTrace();
+        }  
+    }
+
+    public static void DeleteRow(String primaryKeyValue, String tableName, Connection con){
+        //get the primary key
+        ResultSet rs = null;
+        try{
+        DatabaseMetaData dmd = con.getMetaData();
+        rs = dmd.getPrimaryKeys(null,null,tableName);
+        while(rs.next()){
+            System.out.println("Primary Column ="+rs.getString("COLUMN_NAME"));
+        }
+        }catch(Exception e){
+            System.out.println("Error in DeleteRow - "+ e);
+        }
+        //get the table's structure
+        //get the primary key
+        //DELETE * FROM WHERE primaryKey == primaryKeyValue;
+    }
+    
+    public static void DeleteView(String viewName, Connection con){
+        //DROP VIEW viewName;
+    }
+    
+    
+    public static void AddTable(){
+        //THIS WILL BE ACCESSED BY THE ADD TABLE FRAME I THINK, STORING THE COLUMNS IN A ARRAY MAYBE (THIS ISNT VERY USABLE BY OTHER USERS NEED TO THINK ABOUT IT)
+    }
+    
+    public static void AddColumn(String tableName, String columnName, String columnType, Connection con){
+        try{
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate("ALTER TABLE "+tableName+"ADD"+columnName + " "+columnType);
+        }catch(Exception e){
+            
+        }
+    }
+    
+    public static void AddRow(){
+        //ADD INFORMATION BY ARRAY?
+    }
+    
+    public static void AddView(){
+        //CREATE BY A ARRAY?
+    }
+   
+    public static void MergeTable(String tableName1, String tableName2, Connection con){
+        //Joining tables which have a relation
+        //
+    }
+    
+    public static void MergeTable(){
+        
+    }
+    
+    public static void MergeColumn(){
+        //Identical column
+        //Merginging together for example a address
+        // LIST:
+        //1. Introduce a new column (ADD COLUMN)
+        //2.Concatinate the results
+        //3. update the table to contain information.
+        
+        
+        // ERRORS: 
+        //-values are not able to be concatinated to the same value.
+        //-primary key attempted merge (Naughty could break other table relationships)
+        
+        //would you have to change type to string?
+        
+    }
+    
+    
+    public static void AddCalculatedColumn(){
+        
+    }
+    
+    public static void RenameTable(){
+        
+    }
+    
+    public static void RenameColumn(){
+        
+    }
+    
+    public static void RenameView(){
+        
+    }
+       
+    public static void SplitTable(){
+        
+    }
+    
+    public static void SplitColumn(){
+        
+    }
+    
+    
+    public static void ChangeColumn(){
+        
+    }
+}
