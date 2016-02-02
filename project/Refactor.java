@@ -277,8 +277,19 @@ public class Refactor {
        
     public static void SplitTable(String newTableName, String[] columnToBeSplit, String OTable, Connection con){
         String[] type = new String[columnToBeSplit.length];
+        // need to add primary key to new table.
         for(int x=0; x<type.length; x++){type[x]=getType(columnToBeSplit[x], OTable, con);}
         AddTable(newTableName,columnToBeSplit,type,con);
+        String sql ="UPDATE "+newTableName+"SET ";
+        for(int x=0; x<columnToBeSplit.length; x++){sql+=columnToBeSplit[x]+"="+columnToBeSplit[x]+"."+OTable;}
+        System.out.println(sql);
+        try{
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in splitTable:"+e);
+        }
+        
         for(int x=0; x<columnToBeSplit.length; x++){DeleteColumn(OTable,columnToBeSplit[x],con);}
         
     }
@@ -311,11 +322,13 @@ public class Refactor {
         }
         return type;
     }
-    public static void SplitColumn(){
+    public static void SplitColumn(String tableName,String columnName,String[] splitColumn){
+        //create the splitcolumns
+        //loop through the values and split the values.
         
     }
-    
-    
+  
+    //?
     public static void ChangeColumn(){
         
     }
