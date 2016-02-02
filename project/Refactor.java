@@ -322,14 +322,53 @@ public class Refactor {
         }
         return type;
     }
-    public static void SplitColumn(String tableName,String columnName,String[] splitColumn){
+    
+    //split by position
+    public static void SplitColumn(String tableName,String columnName,String[] splitColumn, String splitByAscii, Connection con){
         //create the splitcolumns
+        String type = getType(columnName,tableName,con);
+        for(int x=0; x<splitColumn.length; x++){AddColumn(tableName,splitColumn[x],type,con);}
+        String sql = "SELECT "+columnName+"FROM"+tableName;
+        ResultSet rs = null;
+        try{
+            Statement stmt = con.createStatement();
+            rs = stmt.executeQuery(sql);
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            String[][] values = new String[count][splitColumn.length]; 
+            rs = stmt.executeQuery(sql);
+            count = 0;
+            while(rs.next()){
+                String s = rs.getString(columnName);
+                values[count]=s.split(splitByAscii);
+            }
+            sql ="INSERT INTO "+tableName+"(";
+            for(int x=0; x<splitColumn.length; x++){sql += splitColumn[x]+", ";}
+            sql+=") VALUES";
+            for(int n=0; n<values.length;n++){
+                sql += "(";
+                for(int m=0; m<values[n].length;m++){
+                    if(m!=0){sql+=",";}
+                    sql+=values[n][m];
+                }
+                sql += ")";
+            }
+            System.out.println(sql);
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in SplitColumn(ASCII)"+e);
+        }
+        DeleteColumn(tableName,columnName,con);
         //loop through the values and split the values.
         
     }
+    
+    public static void SplitColumn(String tableName,String columnName,String[] splitColumn, int splitByPosition, Connection con){
+        //create the split columns 
+        //
+    }
   
     //?
-    public static void ChangeColumn(){
-        
-    }
 }
