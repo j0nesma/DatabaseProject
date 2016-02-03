@@ -204,22 +204,34 @@ public class Refactor {
         
     }
     
-    public static void MergeColumn(String NewColumn,String col1, String col2, Connection con){
-        
-        //Identical column
-        //Merginging together for example a address
-        // LIST:
-        //1. Introduce a new column (ADD COLUMN)
-        //2.Concatinate the results
-        //3. update the table to contain information.
-        
-        
-        // ERRORS: 
-        //-values are not able to be concatinated to the same value.
-        //-primary key attempted merge (Naughty could break other table relationships)
-        
-        //would you have to change type to string?
-        
+    public static void MergeColumn(String tableName, String NewColumn,String col1, String col2, Connection con){
+        String col1Type = getType(col1, tableName,con);
+        String col2Type = getType(col2, tableName,con);
+        String type = "VARCHAR";
+        if(col1Type.equals(col2Type)){type = col1Type;}
+        AddColumn(tableName, NewColumn,type, con);
+        String sql = "SELECT "+col1+", "+col2+" FROM "+tableName;
+        ResultSet rs = null;
+        try{
+            Statement stmt = con.createStatement();
+            rs = stmt.executeQuery(sql);
+            int count =0;
+            while(rs.next()){ count++;}
+            String[] concat = new String[count];
+            count=0;
+            while(rs.next()){
+                 String col1value = rs.getString(col1);//THis may have to be changed for a switch case if they have int instead
+                 String col2value = rs.getString(col2);
+                 concat[count] = col1value+" "+col2value;
+                 count++;
+            }
+            sql = "INSERT INTO "+tableName+"("+NewColumn+")VALUES";
+            for(int x=0; x<concat.length; x++){sql+="("+concat[x]+")";}
+            DeleteColumn(tableName,col1,con);
+            DeleteColumn(tableName,col2,con);
+        }catch(Exception e){
+            System.out.println("ERROR MergeColum: "+e);
+        }
     }
     
     
