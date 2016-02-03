@@ -153,35 +153,121 @@ public class Refactor {
         }
     }
     
-    public static void AddRow(){
-        //ADD INFORMATION BY ARRAY?
+    public static void AddRow(String tableName,String[] columns ,String[][] rowInfo, Connection con){
+        String sql ="INSERT INTO "+tableName+"(";
+        for(int x=0; x<columns.length; x++){sql += columns[x]+", ";}
+        sql+=") VALUES";
+        for(int n=0; n<rowInfo.length;n++){
+            sql += "(";
+            for(int m=0; m<rowInfo[n].length;m++){
+                if(m!=0){sql+=",";}
+                sql+=rowInfo[n][m];
+            }
+            sql += ")";
+        }
+        try{
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in addrow: "+e);
+        }
     }
     
+    public static String getPrimaryKey(String tableName, Connection con){
+        ResultSet rs = null;
+        String columnName = null;
+        try{
+            DatabaseMetaData meta = con.getMetaData();
+            rs = meta.getPrimaryKeys(null, null, tableName); 
+            while (rs.next()) {
+               columnName = rs.getString("COLUMN_NAME");
+            }
+        }catch(Exception e){
+            System.out.println("ERROR in getPrimaryKey: "+e);
+        }
+        return columnName;
+    }
+    
+    public static String getForeignKey(String tableName, String relationTableName, Connection con){
+        ResultSet rs = null;
+        String fkColumnName = null;
+        try{
+        DatabaseMetaData meta = con.getMetaData();
+        rs = meta.getExportedKeys(con.getCatalog(), null, "survey");
+         while (rs.next()) {
+           String fkTableName = rs.getString("FKTABLE_NAME");
+           if(fkTableName.equals(relationTableName)){
+               fkColumnName = rs.getString("FKCOLUMN_NAME");
+           }
+         }
+        }catch(Exception e){
+            System.out.println("Error in getForeignKey: "+e);
+        }
+        return fkColumnName;
+    }
    
     public static void MergeTable(String tableName1, String tableName2, Connection con){
         //Joining tables which have a relation
-        //
+        String pkColumn = getPrimaryKey(tableName1,con);
+        String fkColumn = getForeignKey(tableName2,tableName1,con);
+        try{
+            DatabaseMetaData meta = con.getMetaData();
+            ResultSet rs = meta.getColumns(null, null, tableName2, null);
+            int count=0;
+            while(rs.next()){
+                count++;
+            }
+            String[] columnNames = new String[count];
+            String[] type = new String[count];
+            rs = meta.getColumns(null, null, tableName2, null);
+            count=0;
+            while(rs.next()){
+                columnNames[count] = rs.getString("COLUMN_NAME");
+                type[count] = rs.getString("TYPE_NAME");
+                count++;
+            }
+            for(int x=0; x<columnNames.length; x++){AddColumn(tableName1,columnNames[x],type[x],con);}
+            //insert values in
+            String sql = "SELECT * FROM "+tableName1+","+ tableName2+" WHERE "+pkColumn+"."+tableName1+"="+ fkColumn+"."+tableName2;
+            System.out.println("sql="+sql);
+            //delete other table
+        }catch(Exception e){
+            System.out.println("ERROR in MergeTable 1:"+e);
+        }
     }
     
     public static void MergeTable(){
         
     }
     
-    public static void MergeColumn(){
-        //Identical column
-        //Merginging together for example a address
-        // LIST:
-        //1. Introduce a new column (ADD COLUMN)
-        //2.Concatinate the results
-        //3. update the table to contain information.
-        
-        
-        // ERRORS: 
-        //-values are not able to be concatinated to the same value.
-        //-primary key attempted merge (Naughty could break other table relationships)
-        
-        //would you have to change type to string?
-        
+    public static void MergeColumn(String tableName, String NewColumn,String col1, String col2, Connection con){
+        String col1Type = getType(col1, tableName,con);
+        String col2Type = getType(col2, tableName,con);
+        String type = "VARCHAR";
+        if(col1Type.equals(col2Type)){type = col1Type;}
+        AddColumn(tableName, NewColumn,type, con);
+        String sql = "SELECT "+col1+", "+col2+" FROM "+tableName;
+        ResultSet rs = null;
+        try{
+            Statement stmt = con.createStatement();
+            rs = stmt.executeQuery(sql);
+            int count =0;
+            while(rs.next()){ count++;}
+            String[] concat = new String[count];
+            count=0;
+            while(rs.next()){
+                 String col1value = rs.getString(col1);//THis may have to be changed for a switch case if they have int instead
+                 String col2value = rs.getString(col2);
+                 concat[count] = col1value+" "+col2value;
+                 count++;
+            }
+            sql = "INSERT INTO "+tableName+"("+NewColumn+")VALUES";
+            for(int x=0; x<concat.length; x++){sql+="("+concat[x]+")";}
+            DeleteColumn(tableName,col1,con);
+            DeleteColumn(tableName,col2,con);
+        }catch(Exception e){
+            System.out.println("ERROR MergeColum: "+e);
+        }
     }
     
     
@@ -277,8 +363,19 @@ public class Refactor {
        
     public static void SplitTable(String newTableName, String[] columnToBeSplit, String OTable, Connection con){
         String[] type = new String[columnToBeSplit.length];
+        // need to add primary key to new table.
         for(int x=0; x<type.length; x++){type[x]=getType(columnToBeSplit[x], OTable, con);}
         AddTable(newTableName,columnToBeSplit,type,con);
+        String sql ="UPDATE "+newTableName+"SET ";
+        for(int x=0; x<columnToBeSplit.length; x++){sql+=columnToBeSplit[x]+"="+columnToBeSplit[x]+"."+OTable;}
+        System.out.println(sql);
+        try{
+            Statement stmt = con.createStatement();
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in splitTable:"+e);
+        }
+        
         for(int x=0; x<columnToBeSplit.length; x++){DeleteColumn(OTable,columnToBeSplit[x],con);}
         
     }
@@ -311,12 +408,95 @@ public class Refactor {
         }
         return type;
     }
-    public static void SplitColumn(){
+    
+    //split by position
+    public static void SplitColumn(String tableName,String columnName,String[] splitColumn, String splitByAscii, Connection con){
+        //create the splitcolumns
+        String type = getType(columnName,tableName,con);
+        for(int x=0; x<splitColumn.length; x++){AddColumn(tableName,splitColumn[x],type,con);}
+        String sql = "SELECT "+columnName+"FROM"+tableName;
+        ResultSet rs = null;
+        try{
+            Statement stmt = con.createStatement();
+            rs = stmt.executeQuery(sql);
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            String[][] values = new String[count][splitColumn.length]; 
+            rs = stmt.executeQuery(sql);
+            count = 0;
+            while(rs.next()){
+                String s = rs.getString(columnName);
+                values[count]=s.split(splitByAscii);
+                count++;
+            }
+            sql ="INSERT INTO "+tableName+"(";
+            for(int x=0; x<splitColumn.length; x++){sql += splitColumn[x]+", ";}
+            sql+=") VALUES";
+            for(int n=0; n<values.length;n++){
+                sql += "(";
+                for(int m=0; m<values[n].length;m++){
+                    if(m!=0){sql+=",";}
+                    sql+=values[n][m];
+                }
+                sql += ")";
+            }
+            System.out.println(sql);
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in SplitColumn(ASCII)"+e);
+        }
+        DeleteColumn(tableName,columnName,con);
+        //loop through the values and split the values.
         
     }
     
-    
-    public static void ChangeColumn(){
+    public static void SplitColumn(String tableName,String columnName,String[] splitColumn, int splitByPosition, Connection con){
+        //create the splitcolumns
+        String type = getType(columnName,tableName,con);
+        for(int x=0; x<splitColumn.length; x++){AddColumn(tableName,splitColumn[x],type,con);}
+        String sql = "SELECT "+columnName+"FROM"+tableName;
+        ResultSet rs = null;
+        try{
+            Statement stmt = con.createStatement();
+            rs = stmt.executeQuery(sql);
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            String[][] values = new String[count][splitColumn.length]; 
+            rs = stmt.executeQuery(sql);
+            count = 0;
+            int position = 0;
+            int point = 0;
+            while(rs.next()){
+                String s = rs.getString(columnName);
+                while(position<s.length()){
+                    values[count][point]=s.substring(position,position+position);
+                    position =+ position;
+                }
+            }
+            sql ="INSERT INTO "+tableName+"(";
+            for(int x=0; x<splitColumn.length; x++){sql += splitColumn[x]+", ";}
+            sql+=") VALUES";
+            for(int n=0; n<values.length;n++){
+                sql += "(";
+                for(int m=0; m<values[n].length;m++){
+                    if(m!=0){sql+=",";}
+                    sql+=values[n][m];
+                }
+                sql += ")";
+            }
+            System.out.println(sql);
+            stmt.executeUpdate(sql);
+        }catch(Exception e){
+            System.out.println("ERROR in SplitColumn(ASCII)"+e);
+        }
+        DeleteColumn(tableName,columnName,con);
+        //loop through the values and split the values.
         
     }
+  
+    //?
 }

@@ -14,11 +14,14 @@ import java.sql.Statement;
  * @author Matt
  */
 public class test {
-    private static Refactor r = new Refactor();
+    private static Refactor r=new Refactor();
     private static DatabaseHandler d = new DatabaseHandler("imdb");
     
     public static void main(String[] args){
         System.out.println("running");
-        System.out.println("Test = "+test);
+        String[][] values = new String[10][11];
+        System.out.println(values.length);
+        System.out.println(values[1].length);
+        System.out.println(values[2].length);
     }
 }
