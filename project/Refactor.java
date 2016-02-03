@@ -173,9 +173,43 @@ public class Refactor {
         }
     }
     
+    public static String getPrimaryKey(String tableName, Connection con){
+        ResultSet rs = null;
+        String columnName = null;
+        try{
+            DatabaseMetaData meta = con.getMetaData();
+            rs = meta.getPrimaryKeys(null, null, tableName); 
+            while (rs.next()) {
+               columnName = rs.getString("COLUMN_NAME");
+            }
+        }catch(Exception e){
+            System.out.println("ERROR in getPrimaryKey: "+e);
+        }
+        return columnName;
+    }
+    
+    public static String getForeignKey(String tableName, String relationTableName, Connection con){
+        ResultSet rs = null;
+        String fkColumnName = null;
+        try{
+        DatabaseMetaData meta = con.getMetaData();
+        rs = meta.getExportedKeys(con.getCatalog(), null, "survey");
+         while (rs.next()) {
+           String fkTableName = rs.getString("FKTABLE_NAME");
+           if(fkTableName.equals(relationTableName)){
+               fkColumnName = rs.getString("FKCOLUMN_NAME");
+           }
+         }
+        }catch(Exception e){
+            System.out.println("Error in getForeignKey: "+e);
+        }
+        return fkColumnName;
+    }
    
     public static void MergeTable(String tableName1, String tableName2, Connection con){
         //Joining tables which have a relation
+        String pkColumn = getPrimaryKey(tableName1,con);
+        String fkColumn = getForeignKey(tableName2,tableName1,con);
         try{
             DatabaseMetaData meta = con.getMetaData();
             ResultSet rs = meta.getColumns(null, null, tableName2, null);
@@ -194,6 +228,8 @@ public class Refactor {
             }
             for(int x=0; x<columnNames.length; x++){AddColumn(tableName1,columnNames[x],type[x],con);}
             //insert values in
+            String sql = "SELECT * FROM "+tableName1+","+ tableName2+" WHERE "+pkColumn+"."+tableName1+"="+ fkColumn+"."+tableName2;
+            System.out.println("sql="+sql);
             //delete other table
         }catch(Exception e){
             System.out.println("ERROR in MergeTable 1:"+e);
